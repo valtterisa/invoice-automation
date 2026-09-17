@@ -1,0 +1,68 @@
+services:
+  api:
+    image: ghcr.io/${GHCR_OWNER:-local}/invoice-api:${IMAGE_TAG:-local}
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: ${API_PORT:-3001}
+      HOST: ${API_HOST:-0.0.0.0}
+      DATABASE_URL: ${DATABASE_URL:-mysql://invoice:invoicepassword@mysql:3306/invoice_agent}
+      ANTHROPIC_MOCK: ${ANTHROPIC_MOCK:-true}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
+      AWS_REGION: ${AWS_REGION:-eu-north-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_PROFILE: ${AWS_PROFILE:-}
+      S3_BUCKET: ${S3_BUCKET:-invoice-agent}
+    ports:
+      - "${API_PORT:-3001}:3001"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - invoice_internal
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-invoice_agent}
+      MYSQL_USER: ${MYSQL_USER:-invoice}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-invoicepassword}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - invoice_internal
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+networks:
+  invoice_internal:
+    driver: bridge
+
+volumes:
+  mysql_data:

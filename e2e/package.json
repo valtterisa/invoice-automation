@@ -1,0 +1,17 @@
+{
+  "name": "@invoice-agent/e2e",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node -e \"console.log('E2E: use pnpm test:e2e')\"",
+    "test:e2e": "node --env-file=../.env ./node_modules/@playwright/test/cli.js test",
+    "test:ui": "node --env-file=../.env ./node_modules/@playwright/test/cli.js test --ui",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.51.0",
+    "@types/node": "^22.13.10",
+    "typescript": "^5.8.2"
+  }
+}

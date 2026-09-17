@@ -1,0 +1,24 @@
+{
+  "name": "invoice-agent",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@9.15.9",
+  "scripts": {
+    "dev:web": "pnpm --filter @invoice-agent/web dev",
+    "dev:api": "pnpm --filter @invoice-agent/api dev",
+    "build": "pnpm --filter @invoice-agent/shared build && pnpm --filter @invoice-agent/api build && pnpm --filter @invoice-agent/web build",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm --filter @invoice-agent/shared --filter @invoice-agent/api --filter @invoice-agent/web test",
+    "test:e2e": "pnpm --filter @invoice-agent/e2e test:e2e",
+    "db:generate": "pnpm --filter @invoice-agent/api db:generate",
+    "db:migrate": "pnpm --filter @invoice-agent/api db:migrate"
+  },
+  "devDependencies": {
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.2"
+  },
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  }
+}

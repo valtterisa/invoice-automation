@@ -1,0 +1,124 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build-push:
+    name: Build & Push API Image
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      image_tag: ${{ steps.meta.outputs.image_tag }}
+      ghcr_owner: ${{ steps.meta.outputs.ghcr_owner }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set image metadata
+        id: meta
+        run: |
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "ghcr_owner=${OWNER}" >> "$GITHUB_OUTPUT"
+          echo "image_tag=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          echo "api_image=ghcr.io/${OWNER}/invoice-api" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.api_image }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy to EC2
+    needs: build-push
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Sync compose file
+        run: |
+          ssh -i ~/.ssh/deploy_key "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" \
+            "mkdir -p /opt/invoice-agent"
+          scp -i ~/.ssh/deploy_key \
+            docker-compose.yml \
+            "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/opt/invoice-agent/docker-compose.yml"
+
+      - name: Pull and restart stack
+        env:
+          IMAGE_TAG: ${{ needs.build-push.outputs.image_tag }}
+          GHCR_OWNER: ${{ needs.build-push.outputs.ghcr_owner }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" \
+            IMAGE_TAG="$IMAGE_TAG" GHCR_OWNER="$GHCR_OWNER" \
+            GHCR_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
+            GHCR_USER="${{ github.actor }}" \
+            bash -s <<'REMOTE'
+          set -euo pipefail
+          cd /opt/invoice-agent
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+          set -a
+          [ -f .env ] && . ./.env
+          set +a
+          export IMAGE_TAG GHCR_OWNER
+          docker compose pull api
+          docker compose up -d --remove-orphans
+          REMOTE
+
+      - name: Wait for health endpoints
+        run: |
+          ssh -i ~/.ssh/deploy_key "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" bash -s <<'REMOTE'
+          set -euo pipefail
+          cd /opt/invoice-agent
+          for i in $(seq 1 36); do
+            if curl -fsS "http://127.0.0.1:3001/health" >/dev/null \
+              && curl -fsS "http://127.0.0.1:3001/ready" >/dev/null; then
+              echo "Healthy after attempt $i"
+              exit 0
+            fi
+            echo "Waiting for health... ($i/36)"
+            sleep 5
+          done
+          echo "Deploy failed: /health or /ready not healthy"
+          docker compose ps || true
+          exit 1
+          REMOTE

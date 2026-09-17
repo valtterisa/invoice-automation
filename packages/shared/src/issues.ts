@@ -1,0 +1,24 @@
+export const ISSUE_TYPES = [
+  "TOTAL_MISMATCH",
+  "DUPLICATE_INVOICE",
+  "MISSING_INVOICE_NUMBER",
+  "MISSING_VENDOR",
+  "MISSING_INVOICE_DATE",
+  "INVALID_DATES",
+  "INVALID_AMOUNTS",
+  "LINE_ITEM_MISMATCH",
+  "MISSING_LINE_ITEMS",
+  "MISSING_DUE_DATE",
+  "MISSING_CURRENCY",
+  "CURRENCY_MISMATCH",
+  "VAT_MISMATCH",
+  "SUBTOTAL_MISMATCH",
+  "NEGATIVE_AMOUNT",
+  "EXTRACTION_LOW_CONFIDENCE",
+] as const;
+
+export type IssueType = (typeof ISSUE_TYPES)[number];
+
+export const ISSUE_SEVERITIES = ["error", "warning", "info"] as const;
+
+export type IssueSeverity = (typeof ISSUE_SEVERITIES)[number];

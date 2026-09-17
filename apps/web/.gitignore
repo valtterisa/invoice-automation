@@ -1,0 +1,11 @@
+# Dependencies
+node_modules
+dist
+*.local
+
+# Editor
+.DS_Store
+
+# Test / build caches
+coverage
+node_modules/.tmp
