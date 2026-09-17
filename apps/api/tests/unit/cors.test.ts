@@ -23,6 +23,8 @@ function testApp() {
     storage: {
       putPdf: async () => ({ key: "k", bucket: "b" }),
       getSignedGetUrl: async () => "https://example.com",
+      getSignedPutUrl: async () => "https://example.com/put",
+      headObject: async () => ({ contentLength: 1, contentType: "application/pdf" }),
       getObjectBuffer: async () => Buffer.from(""),
     } satisfies ObjectStorage,
     extractor: {

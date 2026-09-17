@@ -1,5 +1,6 @@
 import {
   GetObjectCommand,
+  HeadObjectCommand,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -18,6 +19,14 @@ export type ObjectStorage = {
     contentType: string,
   ) => Promise<StoredObject>;
   getSignedGetUrl: (key: string, expiresInSeconds?: number) => Promise<string>;
+  getSignedPutUrl: (
+    key: string,
+    contentType: string,
+    expiresInSeconds?: number,
+  ) => Promise<string>;
+  headObject: (
+    key: string,
+  ) => Promise<{ contentLength: number; contentType: string | undefined }>;
   getObjectBuffer: (key: string) => Promise<Buffer>;
 };
 
@@ -68,6 +77,32 @@ export function createS3Storage(): ObjectStorage {
       return getSignedUrl(getS3Client(), command, {
         expiresIn: expiresInSeconds,
       });
+    },
+
+    async getSignedPutUrl(key, contentType, expiresInSeconds = 900) {
+      const config = getConfig();
+      const command = new PutObjectCommand({
+        Bucket: config.S3_BUCKET,
+        Key: key,
+        ContentType: contentType,
+      });
+      return getSignedUrl(getS3Client(), command, {
+        expiresIn: expiresInSeconds,
+      });
+    },
+
+    async headObject(key) {
+      const config = getConfig();
+      const result = await getS3Client().send(
+        new HeadObjectCommand({
+          Bucket: config.S3_BUCKET,
+          Key: key,
+        }),
+      );
+      return {
+        contentLength: result.ContentLength ?? 0,
+        contentType: result.ContentType,
+      };
     },
 
     async getObjectBuffer(key) {

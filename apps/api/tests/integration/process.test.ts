@@ -53,6 +53,11 @@ describe("process invoice flow", () => {
     storage = {
       putPdf: vi.fn(),
       getSignedGetUrl: vi.fn(),
+      getSignedPutUrl: vi.fn(),
+      headObject: vi.fn(async () => ({
+        contentLength: 12,
+        contentType: "application/pdf",
+      })),
       getObjectBuffer: vi.fn(async () => Buffer.from("%PDF-1.4 mock")),
     };
     extractor = {

@@ -6,6 +6,7 @@ export function createInvoiceRoutes(controller: InvoiceController): Router {
   const router = Router();
   const upload = createUploadMiddleware();
 
+  router.post("/uploads", controller.createUpload);
   router.post("/", upload, controller.create);
   router.get("/", controller.list);
   router.get("/:id", controller.getById);

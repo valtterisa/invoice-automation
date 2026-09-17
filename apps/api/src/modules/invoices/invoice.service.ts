@@ -2,12 +2,15 @@ import { randomUUID } from "node:crypto";
 import type { InvoiceExtractor } from "../../infrastructure/ai/invoice-extractor.js";
 import type { ObjectStorage } from "../../infrastructure/storage/s3.js";
 import { logger } from "../../infrastructure/logger.js";
+import { getConfig } from "../../shared/config/index.js";
 import {
   AppError,
   badRequest,
   conflict,
   invalidState,
   notFound,
+  payloadTooLarge,
+  unsupportedMediaType,
 } from "../../shared/errors/index.js";
 import {
   assertIdempotencyMatch,
@@ -23,6 +26,27 @@ import type {
   PaymentTaskDto,
 } from "./invoice.types.js";
 import { validateExtractedInvoice } from "./invoice.validation.js";
+
+const PDF_MIME = "application/pdf";
+const FILE_KEY_RE = /^invoices\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.pdf$/i;
+
+export type PresignUploadInput = {
+  filename: string;
+  contentType: string;
+  size: number;
+};
+
+export type PresignUploadResult = {
+  uploadUrl: string;
+  fileKey: string;
+  expiresIn: number;
+};
+
+export type CreateFromStoredInput = {
+  fileKey: string;
+  originalFilename: string;
+  fileSize: number;
+};
 
 export type ProcessResult = {
   invoice: InvoiceDto;
@@ -56,6 +80,83 @@ export function createInvoiceService(deps: InvoiceServiceDeps) {
       originalFilename: file.originalname,
       mimeType: "application/pdf",
       fileSize: file.size,
+    });
+  }
+
+  async function createUploadUrl(
+    input: PresignUploadInput,
+  ): Promise<PresignUploadResult> {
+    const config = getConfig();
+    const filename = input.filename.trim();
+    if (!filename.toLowerCase().endsWith(".pdf")) {
+      throw unsupportedMediaType("Only PDF files are accepted");
+    }
+    if (input.contentType.toLowerCase() !== PDF_MIME) {
+      throw unsupportedMediaType("Only PDF files are accepted");
+    }
+    if (!Number.isFinite(input.size) || input.size <= 0) {
+      throw badRequest("size must be a positive number");
+    }
+    if (input.size > config.UPLOAD_MAX_BYTES) {
+      throw payloadTooLarge("Uploaded file exceeds size limit");
+    }
+
+    const id = randomUUID();
+    const fileKey = `invoices/${id}.pdf`;
+    const expiresIn = 900;
+    const uploadUrl = await storage.getSignedPutUrl(
+      fileKey,
+      PDF_MIME,
+      expiresIn,
+    );
+    return { uploadUrl, fileKey, expiresIn };
+  }
+
+  async function createFromStored(
+    input: CreateFromStoredInput,
+  ): Promise<InvoiceDto> {
+    const config = getConfig();
+    const match = FILE_KEY_RE.exec(input.fileKey);
+    if (!match) {
+      throw badRequest("Invalid fileKey");
+    }
+    const id = match[1]!;
+    const filename = input.originalFilename.trim();
+    if (!filename.toLowerCase().endsWith(".pdf")) {
+      throw unsupportedMediaType("Only PDF files are accepted");
+    }
+    if (!Number.isFinite(input.fileSize) || input.fileSize <= 0) {
+      throw badRequest("fileSize must be a positive number");
+    }
+    if (input.fileSize > config.UPLOAD_MAX_BYTES) {
+      throw payloadTooLarge("Uploaded file exceeds size limit");
+    }
+
+    let head: { contentLength: number; contentType: string | undefined };
+    try {
+      head = await storage.headObject(input.fileKey);
+    } catch {
+      throw badRequest("Uploaded object not found in storage");
+    }
+    if (head.contentLength <= 0) {
+      throw badRequest("Uploaded object is empty");
+    }
+    if (head.contentLength > config.UPLOAD_MAX_BYTES) {
+      throw payloadTooLarge("Uploaded file exceeds size limit");
+    }
+    if (
+      head.contentType &&
+      head.contentType.toLowerCase() !== PDF_MIME
+    ) {
+      throw unsupportedMediaType("Only PDF files are accepted");
+    }
+
+    return repo.createUploaded({
+      id,
+      fileKey: input.fileKey,
+      originalFilename: filename,
+      mimeType: "application/pdf",
+      fileSize: input.fileSize,
     });
   }
 
@@ -283,6 +384,8 @@ export function createInvoiceService(deps: InvoiceServiceDeps) {
 
   return {
     createFromUpload,
+    createUploadUrl,
+    createFromStored,
     list,
     getById,
     patch,
@@ -294,6 +397,48 @@ export function createInvoiceService(deps: InvoiceServiceDeps) {
 }
 
 export type InvoiceService = ReturnType<typeof createInvoiceService>;
+
+export function parsePresignBody(body: unknown): PresignUploadInput {
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    throw badRequest("Invalid upload request body");
+  }
+  const input = body as Record<string, unknown>;
+  if (typeof input.filename !== "string") {
+    throw badRequest("filename must be a string");
+  }
+  if (typeof input.contentType !== "string") {
+    throw badRequest("contentType must be a string");
+  }
+  if (typeof input.size !== "number") {
+    throw badRequest("size must be a number");
+  }
+  return {
+    filename: input.filename,
+    contentType: input.contentType,
+    size: input.size,
+  };
+}
+
+export function parseCreateFromStoredBody(body: unknown): CreateFromStoredInput {
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    throw badRequest("Invalid create body");
+  }
+  const input = body as Record<string, unknown>;
+  if (typeof input.fileKey !== "string") {
+    throw badRequest("fileKey must be a string");
+  }
+  if (typeof input.originalFilename !== "string") {
+    throw badRequest("originalFilename must be a string");
+  }
+  if (typeof input.fileSize !== "number") {
+    throw badRequest("fileSize must be a number");
+  }
+  return {
+    fileKey: input.fileKey,
+    originalFilename: input.originalFilename,
+    fileSize: input.fileSize,
+  };
+}
 
 export function parsePatchBody(body: unknown): PatchInvoiceInput {
   if (typeof body !== "object" || body === null || Array.isArray(body)) {

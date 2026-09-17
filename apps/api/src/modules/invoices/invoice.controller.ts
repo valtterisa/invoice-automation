@@ -2,7 +2,9 @@ import type { NextFunction, Request, Response } from "express";
 import { sendJson } from "../../shared/http/index.js";
 import { requireUploadedPdf } from "../../shared/middleware/upload.js";
 import {
+  parseCreateFromStoredBody,
   parsePatchBody,
+  parsePresignBody,
   type InvoiceService,
 } from "./invoice.service.js";
 
@@ -13,9 +15,29 @@ export function createInvoiceController(service: InvoiceService) {
     next: NextFunction,
   ): Promise<void> {
     try {
-      const file = requireUploadedPdf(req);
-      const invoice = await service.createFromUpload(file);
+      if (req.file) {
+        const file = requireUploadedPdf(req);
+        const invoice = await service.createFromUpload(file);
+        sendJson(res, 201, { data: invoice });
+        return;
+      }
+      const input = parseCreateFromStoredBody(req.body);
+      const invoice = await service.createFromStored(input);
       sendJson(res, 201, { data: invoice });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async function createUpload(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
+    try {
+      const input = parsePresignBody(req.body);
+      const upload = await service.createUploadUrl(input);
+      sendJson(res, 200, { data: upload });
     } catch (err) {
       next(err);
     }
@@ -130,6 +152,7 @@ export function createInvoiceController(service: InvoiceService) {
 
   return {
     create,
+    createUpload,
     list,
     getById,
     patch,

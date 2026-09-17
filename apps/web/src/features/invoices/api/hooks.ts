@@ -63,9 +63,34 @@ export function useUploadInvoice() {
 
   return useMutation({
     mutationFn: async (file: File) => {
-      const formData = new FormData();
-      formData.append("file", file);
-      return api.postForm<Invoice>("/api/invoices", formData);
+      const contentType = "application/pdf";
+      const upload = await api.post<{
+        uploadUrl: string;
+        fileKey: string;
+        expiresIn: number;
+      }>("/api/invoices/uploads", {
+        filename: file.name,
+        contentType,
+        size: file.size,
+      });
+
+      const putResponse = await fetch(upload.uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": contentType },
+        body: file,
+      });
+      if (!putResponse.ok) {
+        throw new ApiError(putResponse.status, {
+          code: "upload_failed",
+          message: "Failed to upload PDF to storage",
+        });
+      }
+
+      return api.post<Invoice>("/api/invoices", {
+        fileKey: upload.fileKey,
+        originalFilename: file.name,
+        fileSize: file.size,
+      });
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: invoiceKeys.lists() });

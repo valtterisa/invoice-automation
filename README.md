@@ -6,7 +6,7 @@ Upload PDF invoices → Claude extracts fields → the app validates → a human
 
 | Path | Role |
 | --- | --- |
-| `apps/api` | Express, MySQL (Drizzle), AWS S3, Anthropic extraction |
+| `apps/api` | Express, MySQL (Drizzle), AWS S3, Anthropic — **EC2 + Compose** in prod |
 | `apps/web` | React review UI (Vite) — deploy to Vercel |
 | `packages/shared` | Zod schemas, money helpers, REST types |
 | `e2e` | Playwright (needs API + web + MySQL + real S3) |
@@ -56,7 +56,7 @@ pnpm dev:web
 - Web: http://localhost:5173 (Vite proxies `/api`; leave `VITE_API_URL` empty)
 - API: http://localhost:3001 (`/health`, `/ready`)
 
-Upload and E2E need working S3; `/health` can succeed without it.
+Upload and E2E need working S3 **with CORS** for your web origin (browser uploads via presigned PUT); `/health` can succeed without it.
 
 ### Optional: API in Compose
 

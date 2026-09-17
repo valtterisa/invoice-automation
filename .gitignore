@@ -2,6 +2,7 @@ node_modules/
 package-lock.json
 dist/
 build/
+.lambda-build/
 .env
 .env.local
 *.log
@@ -12,10 +13,6 @@ test-results/
 *.tsbuildinfo
 .turbo/
 .vite/
-infra/terraform/.terraform/
-infra/terraform/*.tfstate*
-infra/terraform/*.tfvars
-!infra/terraform/*.tfvars.example
 .drizzle/
 uploads/
 tmp/

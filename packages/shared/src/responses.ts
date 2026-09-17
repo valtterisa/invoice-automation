@@ -69,4 +69,16 @@ export interface InvoiceFileResponse {
   expiresIn: number;
 }
 
+export interface InvoiceUploadUrlResponse {
+  uploadUrl: string;
+  fileKey: string;
+  expiresIn: number;
+}
+
+export interface InvoiceCreateFromStoredRequest {
+  fileKey: string;
+  originalFilename: string;
+  fileSize: number;
+}
+
 export type InvoiceListResponse = InvoiceListItemResponse[];
