@@ -13,10 +13,7 @@ export type IdempotencyRecord = {
   expiresAt: Date;
 };
 
-export function buildIdempotencyScope(
-  action: "process" | "approve",
-  invoiceId: string,
-): string {
+export function buildIdempotencyScope(action: "process" | "approve", invoiceId: string): string {
   return `${action}:${invoiceId}`;
 }
 
@@ -32,21 +29,13 @@ export function computeIdempotencyExpiresAt(
   return new Date(createdAt.getTime() + ttlSeconds * 1000);
 }
 
-export function isIdempotencyExpired(
-  expiresAt: Date,
-  now: Date = new Date(),
-): boolean {
+export function isIdempotencyExpired(expiresAt: Date, now: Date = new Date()): boolean {
   return expiresAt.getTime() <= now.getTime();
 }
 
-export function assertIdempotencyMatch(
-  existing: IdempotencyRecord,
-  requestHash: string,
-): void {
+export function assertIdempotencyMatch(existing: IdempotencyRecord, requestHash: string): void {
   if (existing.requestHash !== requestHash) {
-    throw idempotencyConflict(
-      "Idempotency-Key was reused with a different request payload",
-    );
+    throw idempotencyConflict("Idempotency-Key was reused with a different request payload");
   }
 }
 
