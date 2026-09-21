@@ -1,5 +1,6 @@
 import {
   datetime,
+  index,
   int,
   json,
   mysqlTable,
@@ -20,9 +21,11 @@ export const idempotencyKeys = mysqlTable(
     createdAt: datetime("created_at", { mode: "date", fsp: 3 })
       .notNull()
       .default(sql`CURRENT_TIMESTAMP(3)`),
+    expiresAt: datetime("expires_at", { mode: "date", fsp: 3 }).notNull(),
   },
   (table) => [
     uniqueIndex("idempotency_keys_key_scope_uidx").on(table.key, table.scope),
+    index("idempotency_keys_expires_at_idx").on(table.expiresAt),
   ],
 );
 

@@ -6,7 +6,7 @@ Upload PDF invoices → Claude extracts fields → the app validates → a human
 
 | Path | Role |
 | --- | --- |
-| `apps/api` | Express, MySQL (Drizzle), AWS S3, Anthropic — **EC2 + Compose** in prod |
+| `apps/api` | Express, MySQL (Drizzle), AWS S3, Anthropic — **EC2** in prod (managed MySQL) |
 | `apps/web` | React review UI (Vite) — deploy to Vercel |
 | `packages/shared` | Zod schemas, money helpers, REST types |
 | `e2e` | Playwright (needs API + web + MySQL + real S3) |
@@ -25,6 +25,7 @@ Set at least:
 
 | Variable | Notes |
 | --- | --- |
+| `DATABASE_URL` | Managed MySQL (or any reachable instance) |
 | `ANTHROPIC_MOCK` | `true` — deterministic extraction, no Claude key |
 | `AWS_REGION` | bucket region (e.g. `eu-north-1`) |
 | `S3_BUCKET` | real private S3 bucket |
@@ -32,21 +33,14 @@ Set at least:
 
 `dev:api`, `db:migrate`, and `test:e2e` load root `.env` via Node `--env-file`.
 
-### 2. MySQL
-
-```bash
-docker compose up -d mysql
-docker compose ps   # wait until mysql is healthy
-```
-
-### 3. Install + migrate
+### 2. Install + migrate
 
 ```bash
 pnpm install
 pnpm db:migrate
 ```
 
-### 4. API + web
+### 3. API + web
 
 ```bash
 pnpm dev:api
@@ -58,20 +52,11 @@ pnpm dev:web
 
 Upload and E2E need working S3 **with CORS** for your web origin (browser uploads via presigned PUT); `/health` can succeed without it.
 
-### Optional: API in Compose
-
-```bash
-docker compose up -d --build
-pnpm db:migrate
-```
-
-API on :3001; web still via `pnpm dev:web` or Vercel.
-
 ## Tests
 
 ```bash
 pnpm test        # unit / workspace tests
-pnpm test:e2e    # Playwright — MySQL up, migrated, API+web running, ANTHROPIC_MOCK=true, S3 configured
+pnpm test:e2e    # Playwright — MySQL reachable, migrated, API+web running, ANTHROPIC_MOCK=true, S3 configured
 pnpm typecheck
 pnpm build
 ```

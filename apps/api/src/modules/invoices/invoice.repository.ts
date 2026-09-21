@@ -1,4 +1,4 @@
-import { and, desc, eq, ne, sql } from "drizzle-orm";
+import { and, desc, eq, lte, ne, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import type { Db } from "../../infrastructure/db/client.js";
 import {
@@ -349,6 +349,8 @@ export function createInvoiceRepository(db: Db) {
     requestHash: string;
     responseStatus: number;
     responseBody: unknown;
+    createdAt: Date;
+    expiresAt: Date;
   } | null> {
     const rows = await db
       .select()
@@ -359,10 +361,20 @@ export function createInvoiceRepository(db: Db) {
       .limit(1);
     const row = rows[0];
     if (!row) return null;
+
+    if (row.expiresAt.getTime() <= Date.now()) {
+      await db
+        .delete(idempotencyKeys)
+        .where(eq(idempotencyKeys.id, row.id));
+      return null;
+    }
+
     return {
       requestHash: row.requestHash,
       responseStatus: row.responseStatus,
       responseBody: row.responseBody,
+      createdAt: row.createdAt,
+      expiresAt: row.expiresAt,
     };
   }
 
@@ -372,15 +384,41 @@ export function createInvoiceRepository(db: Db) {
     requestHash: string;
     responseStatus: number;
     responseBody: unknown;
+    expiresAt: Date;
   }): Promise<void> {
+    const values = {
+      id: randomUUID(),
+      key: input.key,
+      scope: input.scope,
+      requestHash: input.requestHash,
+      responseStatus: input.responseStatus,
+      responseBody: input.responseBody,
+      expiresAt: input.expiresAt,
+    };
+
+    try {
+      await db.insert(idempotencyKeys).values(values);
+      return;
+    } catch (err) {
+      if (!isDuplicateKeyError(err)) {
+        throw err;
+      }
+    }
+
+    await db
+      .delete(idempotencyKeys)
+      .where(
+        and(
+          eq(idempotencyKeys.key, input.key),
+          eq(idempotencyKeys.scope, input.scope),
+          lte(idempotencyKeys.expiresAt, new Date()),
+        ),
+      );
+
     try {
       await db.insert(idempotencyKeys).values({
+        ...values,
         id: randomUUID(),
-        key: input.key,
-        scope: input.scope,
-        requestHash: input.requestHash,
-        responseStatus: input.responseStatus,
-        responseBody: input.responseBody,
       });
     } catch (err) {
       if (!isDuplicateKeyError(err)) {

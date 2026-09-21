@@ -12,6 +12,7 @@ export type AppConfig = {
   S3_FORCE_PATH_STYLE: boolean;
   LOG_LEVEL: "fatal" | "error" | "warn" | "info" | "debug" | "trace" | "silent";
   UPLOAD_MAX_BYTES: number;
+  IDEMPOTENCY_TTL_SECONDS: number;
   CORS_ORIGINS: string[];
 };
 
@@ -69,6 +70,8 @@ export function getConfig(): AppConfig {
         ? (logLevel as AppConfig["LOG_LEVEL"])
         : "info",
     UPLOAD_MAX_BYTES: Number(process.env.UPLOAD_MAX_BYTES) || 10_485_760,
+    IDEMPOTENCY_TTL_SECONDS:
+      Number(process.env.IDEMPOTENCY_TTL_SECONDS) || 86_400,
     CORS_ORIGINS: parseCorsOrigins(process.env.CORS_ORIGIN, resolvedEnv),
   };
 }

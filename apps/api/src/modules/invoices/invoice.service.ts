@@ -15,6 +15,7 @@ import {
 import {
   assertIdempotencyMatch,
   buildIdempotencyScope,
+  computeIdempotencyExpiresAt,
   hashRequestPayload,
   requireIdempotencyKey,
 } from "../../shared/idempotency/index.js";
@@ -213,7 +214,8 @@ export function createInvoiceService(deps: InvoiceServiceDeps) {
           requestHash: cached.requestHash,
           responseStatus: cached.responseStatus,
           responseBody: cached.responseBody,
-          createdAt: new Date(),
+          createdAt: cached.createdAt,
+          expiresAt: cached.expiresAt,
         },
         requestHash,
       );
@@ -239,7 +241,8 @@ export function createInvoiceService(deps: InvoiceServiceDeps) {
             requestHash: raced.requestHash,
             responseStatus: raced.responseStatus,
             responseBody: raced.responseBody,
-            createdAt: new Date(),
+            createdAt: raced.createdAt,
+            expiresAt: raced.expiresAt,
           },
           requestHash,
         );
@@ -256,6 +259,11 @@ export function createInvoiceService(deps: InvoiceServiceDeps) {
         `Cannot transition invoice from ${current.status} to processing`,
       );
     }
+
+    const expiresAt = computeIdempotencyExpiresAt(
+      new Date(),
+      getConfig().IDEMPOTENCY_TTL_SECONDS,
+    );
 
     try {
       const pdfBytes = await storage.getObjectBuffer(invoice.fileKey);
@@ -286,6 +294,7 @@ export function createInvoiceService(deps: InvoiceServiceDeps) {
         requestHash,
         responseStatus: 200,
         responseBody: result,
+        expiresAt,
       });
 
       return { invoice: result };
@@ -308,6 +317,7 @@ export function createInvoiceService(deps: InvoiceServiceDeps) {
         requestHash,
         responseStatus: 200,
         responseBody: failed,
+        expiresAt,
       });
       return { invoice: failed };
     }
@@ -330,7 +340,8 @@ export function createInvoiceService(deps: InvoiceServiceDeps) {
           requestHash: cached.requestHash,
           responseStatus: cached.responseStatus,
           responseBody: cached.responseBody,
-          createdAt: new Date(),
+          createdAt: cached.createdAt,
+          expiresAt: cached.expiresAt,
         },
         requestHash,
       );
@@ -351,6 +362,10 @@ export function createInvoiceService(deps: InvoiceServiceDeps) {
         requestHash,
         responseStatus: 200,
         responseBody: result,
+        expiresAt: computeIdempotencyExpiresAt(
+          new Date(),
+          getConfig().IDEMPOTENCY_TTL_SECONDS,
+        ),
       });
       return result;
     } catch (err) {

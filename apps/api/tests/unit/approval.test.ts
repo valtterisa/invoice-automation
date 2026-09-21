@@ -74,6 +74,8 @@ describe("approve flow", () => {
         requestHash,
         responseStatus: 200,
         responseBody: payload,
+        createdAt: new Date(),
+        expiresAt: new Date(Date.now() + 86_400_000),
       })),
       saveIdempotency: vi.fn(),
       approveWithPaymentTask: vi.fn(),
@@ -141,6 +143,8 @@ describe("approve flow", () => {
           invoice: makeInvoiceDto({ status: "approved" }),
           paymentTask: makePaymentTaskDto(),
         },
+        createdAt: new Date(),
+        expiresAt: new Date(Date.now() + 86_400_000),
       })),
       approveWithPaymentTask: vi.fn(),
     } as unknown as InvoiceRepository;

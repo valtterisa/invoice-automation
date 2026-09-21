@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import { badRequest, idempotencyConflict } from "../errors/index.js";
 
+export const DEFAULT_IDEMPOTENCY_TTL_SECONDS = 86_400;
+
 export type IdempotencyRecord = {
   key: string;
   scope: string;
@@ -8,6 +10,7 @@ export type IdempotencyRecord = {
   responseStatus: number;
   responseBody: unknown;
   createdAt: Date;
+  expiresAt: Date;
 };
 
 export function buildIdempotencyScope(
@@ -20,6 +23,20 @@ export function buildIdempotencyScope(
 export function hashRequestPayload(payload: unknown): string {
   const serialized = JSON.stringify(payload ?? null);
   return createHash("sha256").update(serialized).digest("hex");
+}
+
+export function computeIdempotencyExpiresAt(
+  createdAt: Date = new Date(),
+  ttlSeconds: number = DEFAULT_IDEMPOTENCY_TTL_SECONDS,
+): Date {
+  return new Date(createdAt.getTime() + ttlSeconds * 1000);
+}
+
+export function isIdempotencyExpired(
+  expiresAt: Date,
+  now: Date = new Date(),
+): boolean {
+  return expiresAt.getTime() <= now.getTime();
 }
 
 export function assertIdempotencyMatch(

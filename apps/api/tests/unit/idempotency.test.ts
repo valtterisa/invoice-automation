@@ -2,10 +2,15 @@ import { describe, expect, it } from "vitest";
 import {
   assertIdempotencyMatch,
   buildIdempotencyScope,
+  computeIdempotencyExpiresAt,
   hashRequestPayload,
+  isIdempotencyExpired,
   requireIdempotencyKey,
 } from "../../src/shared/idempotency/index.js";
 import { AppError } from "../../src/shared/errors/index.js";
+
+const futureExpiry = () => new Date(Date.now() + 60_000);
+const pastExpiry = () => new Date(Date.now() - 60_000);
 
 describe("idempotency helpers", () => {
   it("builds scopes and stable hashes", () => {
@@ -27,6 +32,15 @@ describe("idempotency helpers", () => {
     expect(requireIdempotencyKey(" key-1 ")).toBe("key-1");
   });
 
+  it("computes expiry from TTL and detects expired records", () => {
+    const createdAt = new Date("2026-01-01T00:00:00.000Z");
+    expect(computeIdempotencyExpiresAt(createdAt, 3600).toISOString()).toBe(
+      "2026-01-01T01:00:00.000Z",
+    );
+    expect(isIdempotencyExpired(pastExpiry())).toBe(true);
+    expect(isIdempotencyExpired(futureExpiry())).toBe(false);
+  });
+
   it("throws IDEMPOTENCY_CONFLICT when payload hash differs", () => {
     try {
       assertIdempotencyMatch(
@@ -37,6 +51,7 @@ describe("idempotency helpers", () => {
           responseStatus: 200,
           responseBody: {},
           createdAt: new Date(),
+          expiresAt: futureExpiry(),
         },
         "bbb",
       );
@@ -60,6 +75,7 @@ describe("idempotency helpers", () => {
           responseStatus: 200,
           responseBody: { ok: true },
           createdAt: new Date(),
+          expiresAt: futureExpiry(),
         },
         "same",
       ),

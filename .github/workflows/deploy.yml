@@ -81,7 +81,7 @@ jobs:
             "mkdir -p /opt/invoice-agent"
           scp -i ~/.ssh/deploy_key \
             docker-compose.yml \
-            "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/opt/invoice-agent/docker-compose.yml"
+            "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/opt/invoice-agent/"
 
       - name: Pull and restart stack
         env:

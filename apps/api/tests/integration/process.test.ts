@@ -180,6 +180,8 @@ describe("process invoice flow", () => {
       requestHash,
       responseStatus: 200,
       responseBody: cachedInvoice,
+      createdAt: new Date(),
+      expiresAt: new Date(Date.now() + 86_400_000),
     });
 
     const service = buildService(repo, storage, extractor);
@@ -214,6 +216,8 @@ describe("process invoice flow", () => {
       requestHash: "other-payload-hash",
       responseStatus: 200,
       responseBody: makeInvoiceDto({ id: "inv-process", status: "needs_review" }),
+      createdAt: new Date(),
+      expiresAt: new Date(Date.now() + 86_400_000),
     });
 
     const service = buildService(repo, storage, extractor);
