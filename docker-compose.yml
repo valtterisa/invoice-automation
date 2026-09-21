@@ -1,11 +1,13 @@
 services:
   api:
-    image: ghcr.io/${GHCR_OWNER}/invoice-api:${IMAGE_TAG:-latest}
-    pull_policy: always
+    image: invoice-api:local
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
     restart: unless-stopped
     env_file:
       - path: .env
-        required: false
+        required: true
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       PORT: ${API_PORT:-3001}
